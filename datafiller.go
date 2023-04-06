@@ -5,10 +5,9 @@ package datafiller
 import (
 	"math/rand"
 	"reflect"
-	"strings"
 	"time"
 
-	"github.com/Pallinder/go-randomdata"
+	// "github.com/Pallinder/go-randomdata"
 )
 
 func init() {
@@ -82,30 +81,32 @@ func (f *Filler) Fill(i interface{}) {
 
 }
 
-func taggedFieldSet(val reflect.Value, structTag string) {
-	stringDataMap := make(map[string]func() string)
+const (
+	letterIdxBits = 6                    // 6 bits to represent a letter index
+	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
+	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
+	letterBytes   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+)
 
-	stringDataMap["address"] = randomdata.Address
-	stringDataMap["city"] = randomdata.City
-	stringDataMap["email"] = randomdata.Email
-	stringDataMap["lastname"] = randomdata.LastName
-	stringDataMap["paragraph"] = randomdata.Paragraph
-	stringDataMap["street"] = randomdata.Street
-	stringDataMap["firstname"] = func() string { return randomdata.FirstName(randomdata.RandomGender) }
-	stringDataMap["name"] = func() string { return randomdata.FullName(randomdata.RandomGender) }
-	stringDataMap["country"] = func() string { return randomdata.Country(0) }
-	stringDataMap["postalcode"] = func() string { return randomdata.PostalCode("US") }
-	stringDataMap["state"] = func() string { return randomdata.State(1) }
-
-	tags := strings.Split(structTag, ",")
-	// TODO(tvi): Design struct tags ordering.
-	if val.Kind() == reflect.String {
-		gen, ok := stringDataMap[tags[0]]
-		if ok {
-			val.SetString(gen())
+//会产生大量的丢弃的case,造成重选和浪费。rand.Int63会产生63bit的随机数
+//如果我们把它分成6份，那么一次就可以产生10个6bit的随机数。这样就减少了浪费
+func RandStringBytesMaskImpr(n int) string {
+	b := make([]byte, n)
+	// A rand.Int63() generates 63 random bits, enough for letterIdxMax letters!
+	for i, cache, remain := n-1, rand.Int63(), letterIdxMax; i >= 0; {
+		if remain == 0 {
+			cache, remain = rand.Int63(), letterIdxMax
 		}
+		if idx := int(cache & letterIdxMask); idx < len(letterBytes) {
+			b[i] = letterBytes[idx]
+			i--
+		}
+		cache >>= letterIdxBits
+		remain--
 	}
+	return string(b)
 }
+
 
 func (self *Filler) recursiveSet(val reflect.Value) {
 	if val.CanSet() {
@@ -151,7 +152,7 @@ func (self *Filler) recursiveSet(val reflect.Value) {
 			}
 			return
 		} else if val.Kind() == reflect.String {
-			val.SetString("test")
+			val.SetString(RandStringBytesMaskImpr(20))
 			return
 		} else if val.Kind() == reflect.Struct {
 			lngth := val.NumField()
@@ -162,8 +163,7 @@ func (self *Filler) recursiveSet(val reflect.Value) {
 					self.recursiveSet(val.Field(i))
 				} else if strType.Field(i).Tag.Get(taggedStructKey) == "-" {
 				} else {
-					advStrTag := strType.Field(i).Tag.Get(taggedStructKey)
-					taggedFieldSet(val.Field(i), advStrTag)
+					// advStrTag := strType.Field(i).Tag.Get(taggedStructKey)
 				}
 			}
 			return
