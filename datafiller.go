@@ -6,8 +6,6 @@ import (
 	"math/rand"
 	"reflect"
 	"time"
-
-	// "github.com/Pallinder/go-randomdata"
 )
 
 func init() {
